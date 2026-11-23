@@ -1,0 +1,709 @@
+openapi: 3.0.1
+info:
+  title: Student Registration API
+  description: |-
+    Manages students, courses, and course rosters.
+
+    All error responses use the `ErrorResponse` schema unless an operation says otherwise.
+    Data is stored in memory and is cleared each time the service restarts.
+  version: 1.0.0
+servers:
+- url: http://localhost:8080
+  description: Local development server
+tags:
+- name: Students
+  description: "Create, read, update, and delete students"
+- name: Courses
+  description: "Create, read, update, and delete courses"
+- name: Rosters
+  description: Enroll students in courses and report enrollment
+paths:
+  /api/students/{id}:
+    get:
+      tags:
+      - Students
+      summary: Get a student
+      operationId: getStudent
+      parameters:
+      - name: id
+        in: path
+        description: Id of the student.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: The student.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentResponse"
+        "404":
+          description: No student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+      - Students
+      summary: Update a student
+      description: "Replaces the student's details and, when `courses` is supplied,\
+        \ their course enrollments."
+      operationId: updateStudent
+      parameters:
+      - name: id
+        in: path
+        description: Id of the student.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentRequest"
+        required: true
+      responses:
+        "200":
+          description: The updated student.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentResponse"
+        "400":
+          description: The request failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+      - Students
+      summary: Delete a student
+      description: Deletes the student and removes them from the roster of every course
+        they are enrolled in.
+      operationId: deleteStudent
+      parameters:
+      - name: id
+        in: path
+        description: Id of the student.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "204":
+          description: The student was deleted.
+        "404":
+          description: No student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/courses/{id}:
+    get:
+      tags:
+      - Courses
+      summary: Get a course
+      operationId: getCourse
+      parameters:
+      - name: id
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: The course.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResponse"
+        "404":
+          description: No course has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+      - Courses
+      summary: Update a course
+      description: "Replaces the course's details and, when `roster` is supplied,\
+        \ its roster."
+      operationId: updateCourse
+      parameters:
+      - name: id
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseRequest"
+        required: true
+      responses:
+        "200":
+          description: The updated course.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResponse"
+        "400":
+          description: "The request failed validation, or `maxSize` is below the size\
+            \ of the roster."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "No course has this id, or `roster` contains an id that does\
+            \ not belong to a student."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+      - Courses
+      summary: Delete a course
+      description: Deletes the course. The students on its roster are not deleted.
+      operationId: deleteCourse
+      parameters:
+      - name: id
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "204":
+          description: The course was deleted.
+        "404":
+          description: No course has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/courses/removeStudent/{courseId}:
+    put:
+      tags:
+      - Rosters
+      summary: Remove a student from a course
+      operationId: removeStudentFromCourse
+      parameters:
+      - name: courseId
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RosterChangeRequest"
+        required: true
+      responses:
+        "200":
+          description: The course with its updated roster.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResponse"
+        "404":
+          description: No course or no student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The student is not on the roster.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/courses/addStudent/{courseId}:
+    put:
+      tags:
+      - Rosters
+      summary: Add a student to a course
+      description: Adds the student to the roster. The body is the student's id as
+        a bare JSON number. A course can never hold more than `maxSize` students.
+      operationId: addStudentToCourse
+      parameters:
+      - name: courseId
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        description: Id of the student.
+        content:
+          application/json:
+            schema:
+              type: integer
+              format: int64
+              example: 1
+        required: true
+      responses:
+        "200":
+          description: The course with its updated roster.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResponse"
+        "404":
+          description: No course or no student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "The course is full, or the student is already on the roster."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/students:
+    get:
+      tags:
+      - Students
+      summary: List students
+      description: "Returns every student, optionally limited to a single major."
+      operationId: listStudents
+      parameters:
+      - name: major
+        in: query
+        description: Return only students with exactly this major.
+        required: false
+        schema:
+          type: string
+        example: Computer Science
+      responses:
+        "200":
+          description: The matching students. The list is empty when nothing matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentResponse"
+    post:
+      tags:
+      - Students
+      summary: Create a student
+      description: Creates a student and places them on the roster of any courses
+        listed in `courses`.
+      operationId: createStudent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentRequest"
+        required: true
+      responses:
+        "201":
+          description: The student was created.
+          headers:
+            Location:
+              description: URL of the new student.
+              style: simple
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentResponse"
+        "400":
+          description: The request failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/courses:
+    get:
+      tags:
+      - Courses
+      summary: List courses
+      description: "Returns every course, optionally limited to a single instructor."
+      operationId: listCourses
+      parameters:
+      - name: instructorId
+        in: query
+        description: Return only courses taught by this instructor.
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      responses:
+        "200":
+          description: The matching courses. The list is empty when nothing matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CourseResponse"
+    post:
+      tags:
+      - Courses
+      summary: Create a course
+      description: "Creates a course, optionally with an initial roster."
+      operationId: createCourse
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseRequest"
+        required: true
+      responses:
+        "201":
+          description: The course was created.
+          headers:
+            Location:
+              description: URL of the new course.
+              style: simple
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResponse"
+        "400":
+          description: "The request failed validation, or the initial roster is larger\
+            \ than `maxSize`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: '`roster` contains an id that does not belong to a student.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/students/{id}/courses:
+    get:
+      tags:
+      - Students
+      summary: List a student's courses
+      description: Returns the full details of each course the student is enrolled
+        in.
+      operationId: listStudentCourses
+      parameters:
+      - name: id
+        in: path
+        description: Id of the student.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: The student's courses.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CourseResponse"
+        "404":
+          description: No student has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/courses/getEnrollment/{courseId}:
+    get:
+      tags:
+      - Rosters
+      summary: Get the number of students in a course
+      description: Returns the number of students currently on the roster.
+      operationId: getCourseEnrollment
+      parameters:
+      - name: courseId
+        in: path
+        description: Id of the course.
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: The number of students on the roster.
+          content:
+            application/json:
+              schema:
+                minimum: 0
+                type: integer
+                format: int64
+                example: 12
+        "404":
+          description: No course has this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    StudentRequest:
+      required:
+      - gpa
+      - major
+      - name
+      type: object
+      properties:
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+          description: Full name of the student.
+          example: Sherlock Holmes
+        major:
+          maxLength: 255
+          minLength: 1
+          type: string
+          description: Declared major.
+          example: Computer Science
+        gpa:
+          maximum: 4.0
+          exclusiveMaximum: false
+          minimum: 0.0
+          exclusiveMinimum: false
+          type: number
+          description: Grade point average on a 4.0 scale.
+          format: double
+          example: 3.75
+        courses:
+          type: array
+          description: "Ids of the courses to enroll this student in. The student\
+            \ is added to the roster of each course. On an update, the list replaces\
+            \ the student's current courses."
+          items:
+            type: integer
+            format: int64
+            example: 1
+        dateOfBirth:
+          type: string
+          description: "Date of birth. Protected student data: it is accepted on write\
+            \ and is never returned by the API."
+          format: date
+          writeOnly: true
+          example: 2004-01-06
+      description: The fields a client supplies to create or update a student.
+    StudentResponse:
+      required:
+      - courses
+      - gpa
+      - id
+      - major
+      - name
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique id assigned by the service.
+          format: int64
+          example: 1
+        name:
+          type: string
+          description: Full name of the student.
+          example: Sherlock Holmes
+        major:
+          type: string
+          description: Declared major.
+          example: Computer Science
+        gpa:
+          maximum: 4.0
+          minimum: 0.0
+          type: number
+          description: Grade point average on a 4.0 scale.
+          format: double
+          example: 3.75
+        courses:
+          uniqueItems: true
+          type: array
+          description: "Names of the courses this student is enrolled in, with one\
+            \ entry per course."
+          items:
+            type: string
+            example: CS1
+      description: A student as returned by the API.
+    ErrorResponse:
+      required:
+      - error
+      - message
+      - path
+      - status
+      - timestamp
+      type: object
+      properties:
+        timestamp:
+          type: string
+          description: When the error occurred.
+          format: date-time
+          example: 2026-11-06T14:30:00Z
+        status:
+          type: integer
+          description: HTTP status code.
+          format: int32
+          example: 404
+        error:
+          type: string
+          description: HTTP status phrase.
+          example: Not Found
+        message:
+          type: string
+          description: What went wrong.
+          example: No such student exists.
+        path:
+          type: string
+          description: The path that was requested.
+          example: /api/students/99
+      description: The standard body of an error response.
+    CourseRequest:
+      required:
+      - maxSize
+      - name
+      - room
+      type: object
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          description: Name of the course.
+          example: CS1
+        instructor:
+          minimum: 1
+          type: integer
+          description: Id of the instructor teaching the course.
+          format: int64
+          example: 2
+        maxSize:
+          minimum: 1
+          type: integer
+          description: Maximum number of students the course can hold. It cannot be
+            set below the number of students already on the roster.
+          format: int32
+          example: 30
+        room:
+          maxLength: 255
+          minLength: 1
+          type: string
+          description: Room where the course meets.
+          example: MCS 339
+        roster:
+          type: array
+          description: "Ids of the students to place on the roster. When omitted from\
+            \ an update, the roster is left unchanged. Every id must belong to an\
+            \ existing student."
+          items:
+            type: integer
+            format: int64
+            example: 1
+      description: The fields a client supplies to create or update a course.
+    CourseResponse:
+      required:
+      - id
+      - instructorId
+      - maxSize
+      - name
+      - room
+      - roster
+      - status
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique id assigned by the service.
+          format: int64
+          example: 1
+        name:
+          type: string
+          description: Name of the course.
+          example: CS1
+        instructorId:
+          type: integer
+          description: Id of the instructor teaching the course.
+          format: int64
+          example: 2
+        maxSize:
+          type: integer
+          description: Maximum number of students the course can hold.
+          format: int32
+          example: 30
+        room:
+          type: string
+          description: Room where the course meets.
+          example: MCS 339
+        roster:
+          type: array
+          description: "The students on the roster, with one entry per student."
+          items:
+            $ref: "#/components/schemas/StudentSummary"
+        status:
+          type: string
+          description: Whether the course is accepting enrollments.
+          example: OPEN
+          enum:
+          - OPEN
+          - CLOSED
+      description: A course as returned by the API.
+    StudentSummary:
+      required:
+      - id
+      - name
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique id of the student.
+          format: int64
+          example: 1
+        name:
+          type: string
+          description: Full name of the student.
+          example: Sherlock Holmes
+      description: The short form of a student used in a course roster.
+    RosterChangeRequest:
+      required:
+      - studentId
+      type: object
+      properties:
+        studentId:
+          type: integer
+          description: Id of the student.
+          format: int64
+          example: 1
+      description: Identifies the student to take off a course roster.
